@@ -20,7 +20,7 @@
 <input id="pais" placeholder="País" />
 <input id="edad" type="number" placeholder="Edad" />
 
-<button onclick="agregar()">Agregar</button>
+<button id="btnAgregar" onclick="agregar()">Agregar</button>
 <button onclick="listar65()">Listar mayores 65 (opcional BD)</button>
 
 <ul id="lista"></ul>
@@ -28,6 +28,7 @@
 <script>
 const ws = new WebSocket("ws://localhost:9000");
 let ul = document.getElementById("lista");
+let editId = null;
 
 ws.onmessage = (e) => {
   const data = JSON.parse(e.data);
@@ -47,6 +48,32 @@ ws.onmessage = (e) => {
   if (data.tipo === "mayores65") {
     alert("Personas mayores de 65 recibidas desde BD:\n" + JSON.stringify(data.data, null, 2));
   }
+
+  if (data.tipo === 'editar') {
+    const id = data.id;
+    const updates = data.updates || {};
+    const li = document.getElementById('i' + id);
+    if (li) {
+      // parse current innerHTML and replace fields to keep structure
+      // We'll create new innerHTML using current values + updates
+      // For simplicity, read old values and apply updates
+      // Extract old values from the DOM and then update
+      const parts = li.innerText;
+      const nameMatch = parts.match(/^([^|]*)/);
+      const cedMatch = parts.match(/Cédula:\s*([^|]*)/);
+      const lugarMatch = parts.match(/\|\s*([^,]*)\s*,\s*([^|]*)\s*\|/);
+      const edadMatch = parts.match(/Edad:\s*(\d+)/);
+      const current = {
+        nombre: nameMatch ? nameMatch[1].trim() : '',
+        cedula: cedMatch ? cedMatch[1].trim() : '',
+        lugar: lugarMatch ? lugarMatch[1].trim() : '',
+        pais: lugarMatch ? lugarMatch[2].trim() : '',
+        edad: edadMatch ? Number(edadMatch[1]) : 0
+      };
+      const merged = { ...current, ...updates };
+      li.innerHTML = `\n        <b>${merged.nombre}</b> | Cédula: ${merged.cedula} | ${merged.lugar}, ${merged.pais} | Edad: ${merged.edad}\n        <button onclick="borrar(${id})">Borrar</button>\n        <button onclick="editarInicio(${id})">Editar</button>\n      `;
+    }
+  }
 };
 
 function agregar() {
@@ -59,11 +86,29 @@ function agregar() {
     edad: Number(edad.value)
   };
   if (!persona.nombre || !persona.cedula) return;
-  ws.send(JSON.stringify(persona));
+  if (editId) {
+    // enviar editar a add-service
+    fetch(`http://localhost:9001/edit/${editId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: persona.nombre, cedula: persona.cedula, lugar: persona.lugar, pais: persona.pais, edad: persona.edad })
+    }).catch(e => console.error('Error edit:', e));
+    // limpiar estado
+    editId = null;
+    document.getElementById('btnAgregar').textContent = 'Agregar';
+    nombre.value = cedula.value = lugar.value = pais.value = edad.value = '';
+  } else {
+    fetch('http://localhost:9001/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(persona)
+    }).catch(e => console.error('Error add:', e));
+    nombre.value = cedula.value = lugar.value = pais.value = edad.value = '';
+  }
 }
 
 function borrar(id) {
-  ws.send(JSON.stringify({ tipo: "borrar", id }));
+  fetch(`http://localhost:9001/delete/${id}`, { method: 'DELETE' }).catch(e => console.error('Error delete:', e));
 }
 
 function listar65() {
@@ -73,13 +118,34 @@ function listar65() {
 function addItem(p) {
   const li = document.createElement("li");
   li.id = "i" + p.id;
-
   li.innerHTML = `
     <b>${p.nombre}</b> | Cédula: ${p.cedula} | ${p.lugar}, ${p.pais} | Edad: ${p.edad}
     <button onclick="borrar(${p.id})">Borrar</button>
+    <button onclick="editarInicio(${p.id})">Editar</button>
   `;
 
   ul.prepend(li);
+}
+
+function editarInicio(id) {
+  const li = document.getElementById('i' + id);
+  if (!li) return;
+  // parse text from li to extract current values; better if server sends object in data
+  // Since addItem uses data.p fields when creating, we can find object via DOM or request current data.
+  // For simplicity, extract values from the innerText of the li.
+  const text = li.innerText;
+  // Example text: "Nombre | Cédula: 123 | lugar, pais | Edad: 30"
+  // We'll do a simple parse using regex
+  const nameMatch = text.match(/^([^|]*)/);
+  const cedMatch = text.match(/Cédula:\s*([^|]*)/);
+  const lugarMatch = text.match(/\|\s*([^,]*)\s*,\s*([^|]*)\s*\|/);
+  const edadMatch = text.match(/Edad:\s*(\d+)/);
+  if (nameMatch) nombre.value = nameMatch[1].trim();
+  if (cedMatch) cedula.value = cedMatch[1].trim();
+  if (lugarMatch) { lugar.value = lugarMatch[1].trim(); pais.value = lugarMatch[2].trim(); }
+  if (edadMatch) edad.value = edadMatch[1].trim();
+  editId = id;
+  document.getElementById('btnAgregar').textContent = 'Guardar';
 }
 </script>
 

@@ -1,6 +1,12 @@
 // server.js
-const WebSocket = require("ws");
-const wss = new WebSocket.Server({ port: 9000 });
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const WebSocket = require('ws');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
 let registros = []; // lista temporal en memoria
 
@@ -50,6 +56,15 @@ wss.on("connection", (ws) => {
       enviarATodos({ tipo: "borrar", id: datos.id });
     }
 
+    // EDITAR REGISTRO
+    if (datos.tipo === "editar") {
+      const i = registros.findIndex(r => r.id === datos.id);
+      if (i !== -1) {
+        registros[i] = { ...registros[i], ...datos.updates };
+        enviarATodos({ tipo: "editar", id: datos.id, updates: datos.updates });
+      }
+    }
+
     // OPCIONAL: LISTAR MAYORES A 65 DESDE BD
     if (datos.tipo === "listar65") {
       // const mayores = await obtenerMayores65();
@@ -58,4 +73,16 @@ wss.on("connection", (ws) => {
   });
 });
 
-console.log("Servidor WebSocket en ws://localhost:9000");
+// Servir archivos estáticos (dashboard.html y demás) desde el directorio del proyecto.
+app.use(express.static(path.join(__dirname)));
+
+// Servir dashboard.html en la raíz
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// Iniciar el servidor HTTP (y WebSocket) en el puerto 9000
+const PORT = process.env.PORT || 9000;
+server.listen(PORT, () => {
+  console.log(`Servidor HTTP & WebSocket en http://localhost:${PORT}`);
+});

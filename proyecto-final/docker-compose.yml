@@ -1,13 +1,21 @@
 version: "3.9"
 
 services:
-  servidor:
+  list:
     build: .
-    container_name: lista-servidor
+    container_name: lista-list
     ports:
       - "9000:9000"
     depends_on:
       - postgres
+  add:
+    build: .
+    container_name: lista-add
+    command: node add.js
+    ports:
+      - "9001:9001"
+    depends_on:
+      - list
 
   postgres:
     image: postgres:15
@@ -21,4 +29,3 @@ services:
       - "5432:5432"
     volumes:
       - ./dbdata:/var/lib/postgresql/data
-
