@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  servidor:
+    build: .
+    container_name: lista-servidor
+    ports:
+      - "9000:9000"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: control
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./dbdata:/var/lib/postgresql/data
+

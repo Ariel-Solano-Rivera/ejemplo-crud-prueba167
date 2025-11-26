@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Lista Dinámica</title>
+<style>
+  body { background:#111; color:#eee; font-family:Arial; padding:20px; }
+  input { margin:5px; padding:5px; }
+  button { padding:6px; margin:5px; }
+  li { margin:8px; padding:8px; background:#333; border-radius:6px; }
+</style>
+</head>
+<body>
+
+<h2>Registro de Personas</h2>
+
+<input id="nombre" placeholder="Nombre" />
+<input id="cedula" placeholder="Cédula" />
+<input id="lugar" placeholder="Lugar" />
+<input id="pais" placeholder="País" />
+<input id="edad" type="number" placeholder="Edad" />
+
+<button onclick="agregar()">Agregar</button>
+<button onclick="listar65()">Listar mayores 65 (opcional BD)</button>
+
+<ul id="lista"></ul>
+
+<script>
+const ws = new WebSocket("ws://localhost:9000");
+let ul = document.getElementById("lista");
+
+ws.onmessage = (e) => {
+  const data = JSON.parse(e.data);
+
+  if (data.tipo === "lista") {
+    data.data.forEach(addItem);
+  }
+
+  if (data.tipo === "agregar") {
+    addItem(data.item);
+  }
+
+  if (data.tipo === "borrar") {
+    document.getElementById("i"+data.id)?.remove();
+  }
+
+  if (data.tipo === "mayores65") {
+    alert("Personas mayores de 65 recibidas desde BD:\n" + JSON.stringify(data.data, null, 2));
+  }
+};
+
+function agregar() {
+  const persona = {
+    tipo: "agregar",
+    nombre: nombre.value.trim(),
+    cedula: cedula.value.trim(),
+    lugar: lugar.value.trim(),
+    pais: pais.value.trim(),
+    edad: Number(edad.value)
+  };
+  if (!persona.nombre || !persona.cedula) return;
+  ws.send(JSON.stringify(persona));
+}
+
+function borrar(id) {
+  ws.send(JSON.stringify({ tipo: "borrar", id }));
+}
+
+function listar65() {
+  ws.send(JSON.stringify({ tipo: "listar65" }));
+}
+
+function addItem(p) {
+  const li = document.createElement("li");
+  li.id = "i" + p.id;
+
+  li.innerHTML = `
+    <b>${p.nombre}</b> | Cédula: ${p.cedula} | ${p.lugar}, ${p.pais} | Edad: ${p.edad}
+    <button onclick="borrar(${p.id})">Borrar</button>
+  `;
+
+  ul.prepend(li);
+}
+</script>
+
+</body>
+</html>
